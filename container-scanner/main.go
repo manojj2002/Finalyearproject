@@ -2,15 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"log"
 	"net/http"
 	"os/exec"
 	"strings"
 	"time"
-	"crypto/sha256"
-	"encoding/hex"
 
-	
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"github.com/gin-gonic/gin"
@@ -20,9 +19,11 @@ import (
 type ScanResult struct {
 	ImageName string `bson:"imageName"`
 	Report    string `bson:"report"`
-	Hash      string `bson:"hash"`
 	Timestamp string `bson:"timestamp"`
 }
+
+// Simulated Blockchain for Hash Storage
+var blockchain = make(map[string]string)
 
 // Initialize MongoDB client
 func initMongoDB() (*mongo.Client, *mongo.Collection, error) {
@@ -71,23 +72,26 @@ func main() {
 			return
 		}
 
-
 		// Extract only the vulnerability report
 		filteredOutput := strings.Split(string(output), "\n\n")
 		var report string
 		if len(filteredOutput) > 1 {
-			report := filteredOutput[len(filteredOutput)-1] // Assume the last part contains the report
-			log.Printf("Filtered Report: %s", report)
+			report = filteredOutput[len(filteredOutput)-1] // Assume the last part contains the report
 		} else {
-			report := string(output)
-			log.Printf("Filtered Report: %s", report)
+			report = string(output)
 		}
-		
-		// Save scan result in MongoDB
+		log.Printf("Filtered Report: %s", report)
+
+		// Compute the hash for the report
+		hash := generateSHA256Hash(report)
+
+		// Simulate storing hash in the blockchain
+		blockchain[request.ImageName] = hash
+
+		// Save scan result (without hash) in MongoDB
 		scanResult := ScanResult{
 			ImageName: request.ImageName,
 			Report:    strings.TrimSpace(report),
-			Hash:      generateSHA256Hash(report),
 			Timestamp: time.Now().Format(time.RFC3339),
 		}
 		_, err = collection.InsertOne(context.TODO(), scanResult)
@@ -100,9 +104,50 @@ func main() {
 		// Respond to the client
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
-			"report":  scanResult.Report,
-			"hash":    scanResult.Hash,
+			"hash":    hash, // Provide hash as proof of storage
 		})
+	})
+
+	// Define the audit endpoint
+	r.POST("/audit", func(c *gin.Context) {
+		var request struct {
+			ImageName string `json:"imageName"`
+		}
+		if err := c.ShouldBindJSON(&request); err != nil || request.ImageName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Container image name is required"})
+			return
+		}
+
+		// Retrieve the scan result from MongoDB
+		var scanResult ScanResult
+		err := collection.FindOne(context.TODO(), gin.H{"imageName": request.ImageName}).Decode(&scanResult)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scan result not found"})
+			return
+		}
+
+		// Compute the hash from the report
+		computedHash := generateSHA256Hash(scanResult.Report)
+
+		// Retrieve the hash from the blockchain
+		blockchainHash, exists := blockchain[request.ImageName]
+		if !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Hash not found in blockchain"})
+			return
+		}
+
+		// Compare hashes
+		if computedHash == blockchainHash {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "The report is authentic",
+			})
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "The report has been tampered with",
+			})
+		}
 	})
 
 	// Start the server
