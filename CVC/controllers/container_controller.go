@@ -17,51 +17,70 @@ import (
 )
 
 func CreateContainerFromImage(c *gin.Context) {
-	imageName := c.Param("imageName")              // Get image name from request
-	containerName := c.DefaultPostForm("name", "") // Get container name from request, default to empty string if not provided
+	imageName := c.Param("imageName") // Get image name from request
+
+	fmt.Println("🚀 Creating container from image:", imageName)
 
 	// Initialize Docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Docker connection failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Docker connection failed", "details": err.Error()})
 		return
 	}
 	defer cli.Close()
 
-	// Create a new container from the image (but do NOT start it)
+	fmt.Println("✅ Docker client initialized successfully!")
+
+	// Create a new container (without manually setting a name)
 	resp, err := cli.ContainerCreate(
 		context.Background(),
 		&container.Config{
-			Image: imageName,                           // Set image name
+			Image: imageName,
 			Cmd:   []string{"tail", "-f", "/dev/null"}, // Keep container idle
-			// If a name is provided, use it, otherwise Docker will assign one
-			Labels: map[string]string{
-				"name": containerName,
-			},
 		},
-		nil, nil, nil, containerName, // Pass the container name if provided
+		nil, nil, nil, "",
 	)
-
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create container"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create container", "details": err.Error()})
 		return
 	}
 
-	// Store container details in the database (including the name)
+	fmt.Println("✅ Container created successfully! ID:", resp.ID)
+
+	// Get the default name assigned by Docker
+	containerJSON, err := cli.ContainerInspect(context.Background(), resp.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to inspect container", "details": err.Error()})
+		return
+	}
+	containerName := containerJSON.Name // Docker includes a leading "/", remove it
+	if len(containerName) > 0 {
+		containerName = containerName[1:]
+	}
+
+	fmt.Println("📝 Assigned container name:", containerName)
+
+	// Store container details in the database
 	err = StoreContainerInDB(resp.ID, imageName, containerName)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save container info"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save container info", "details": err.Error()})
 		return
 	}
 
-	// Respond with container ID and name (even if it's not started yet)
-	c.JSON(http.StatusOK, gin.H{"message": "Container created successfully", "container_id": resp.ID, "container_name": containerName})
+	fmt.Println("✅ Container details stored in database!")
+
+	// Respond with container ID & name
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Container created successfully",
+		"container_id":   resp.ID,
+		"container_name": containerName,
+	})
 }
 
 // StartContainer starts a new container and updates its status in the database
 func StartContainer(c *gin.Context) {
 	// Get container ID from URL params
-	containerID := c.Param("id")
+	containerName := c.Param("name")
 
 	// Initialize Docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv)
@@ -74,7 +93,7 @@ func StartContainer(c *gin.Context) {
 	ctx := context.Background()
 
 	// Check if the container exists and is stopped
-	containerJSON, err := cli.ContainerInspect(ctx, containerID)
+	containerJSON, err := cli.ContainerInspect(ctx, containerName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to inspect container"})
 		return
@@ -87,24 +106,24 @@ func StartContainer(c *gin.Context) {
 	}
 
 	// Start the container
-	if err := cli.ContainerStart(ctx, containerID, types.ContainerStartOptions{}); err != nil {
+	if err := cli.ContainerStart(ctx, containerName, types.ContainerStartOptions{}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start container"})
 		return
 	}
 
 	// Update the container status in the database to "running"
-	err = UpdateContainerStatusInDB(containerID, "running")
+	err = UpdateContainerStatusInDB(containerName, "running")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update container status"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Container started", "container_id": containerID})
+	c.JSON(http.StatusOK, gin.H{"message": "Container started", "container_id": containerName})
 }
 
 // StopContainer stops a running container
 func StopContainer(c *gin.Context) {
-	containerID := c.Param("id")
+	containerName := c.Param("name")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -114,72 +133,78 @@ func StopContainer(c *gin.Context) {
 	defer cli.Close()
 
 	ctx := context.Background()
-	if err := cli.ContainerStop(ctx, containerID, container.StopOptions{}); err != nil {
+	if err := cli.ContainerStop(ctx, containerName, container.StopOptions{}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to stop container"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Container stopped", "container_id": containerID})
-}
-
-// InspectContainer retrieves container details
-func InspectContainer(c *gin.Context) {
-	containerID := c.Param("id")
-
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Docker client error"})
-		return
-	}
-	defer cli.Close()
-
-	ctx := context.Background()
-	containerJSON, err := cli.ContainerInspect(ctx, containerID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to inspect container"})
-		return
-	}
-
-	c.JSON(http.StatusOK, containerJSON)
-}
-
-// DeleteContainer removes a container and updates its status in the database
-func DeleteContainer(c *gin.Context) {
-	containerID := c.Param("id")
-
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Docker client error"})
-		return
-	}
-	defer cli.Close()
-
-	ctx := context.Background()
-
-	// Stop the container before deleting
-	if err := cli.ContainerStop(ctx, containerID, container.StopOptions{}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to stop container"})
-		return
-	}
-
-	// Remove the container
-	if err := cli.ContainerRemove(ctx, containerID, types.ContainerRemoveOptions{Force: true}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete container"})
-		return
-	}
-
-	// Update the container status in the database to "deleted"
-	err = UpdateContainerStatusInDB(containerID, "deleted")
+	err = UpdateContainerStatusInDB(containerName, "stopped")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update container status"})
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"message": "Container stopped", "container_id": containerName})
+}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Container deleted", "container_id": containerID})
+// InspectContainer retrieves container details
+// func InspectContainer(c *gin.Context) {
+// 	containerID := c.Param("id")
+
+// 	cli, err := client.NewClientWithOpts(client.FromEnv)
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Docker client error"})
+// 		return
+// 	}
+// 	defer cli.Close()
+
+// 	ctx := context.Background()
+// 	containerJSON, err := cli.ContainerInspect(ctx, containerID)
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to inspect container"})
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, containerJSON)
+// }
+
+// DeleteContainer removes a container and updates its status in the database
+func DeleteContainer(c *gin.Context) {
+	containerName := c.Param("name") // Ensure this matches the route parameter
+
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Docker client error"})
+		return
+	}
+	defer cli.Close()
+
+	ctx := context.Background()
+
+	// Attempt to stop the container (ignore errors if already stopped or not found)
+	_ = cli.ContainerStop(ctx, containerName, container.StopOptions{})
+
+	// Remove the container
+	if err := cli.ContainerRemove(ctx, containerName, types.ContainerRemoveOptions{Force: true}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete container"})
+		return
+	}
+
+	// Update the container status in the database
+	collection := config.GetDB().Collection("containers")
+
+	// Define the filter and delete operation
+	filter := bson.M{"name": containerName}
+	_, err = collection.DeleteOne(context.Background(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete container from DB"})
+		return
+	}
+
+	// Respond to the client
+	c.JSON(http.StatusOK, gin.H{"message": "Container deleted successfully", "container_name": containerName})
 }
 
 func GetContainerDetails(c *gin.Context) {
-	containerID := c.Param("id")
+	containerName := c.Param("name")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -187,15 +212,15 @@ func GetContainerDetails(c *gin.Context) {
 		return
 	}
 
-	containerJSON, err := cli.ContainerInspect(context.Background(), containerID)
+	containerJSON, err := cli.ContainerInspect(context.Background(), containerName)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Container %s not found", containerID)})
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Container %s not found", containerName)})
 		return
 	}
 
 	// Prepare response data
 	containerDetails := gin.H{
-		"Name":    containerJSON.Name,
+		"ID":      containerJSON.ID,
 		"Image":   containerJSON.Config.Image,
 		"Created": containerJSON.Created,
 		"State":   containerJSON.State.Status,
@@ -226,12 +251,12 @@ func StoreContainerInDB(containerID, imageName, containerName string) error {
 	return nil
 }
 
-func UpdateContainerStatusInDB(containerID, status string) error {
+func UpdateContainerStatusInDB(containerName, status string) error {
 	// Get the MongoDB collection
 	collection := config.GetDB().Collection("containers")
 
 	// Define the filter and update data
-	filter := bson.M{"container_id": containerID}
+	filter := bson.M{"name": containerName}
 	update := bson.M{"$set": bson.M{"status": status}}
 
 	// Update the container status in the DB
