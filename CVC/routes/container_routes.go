@@ -9,11 +9,11 @@ import (
 func RegisterContainerRoutes(router *gin.Engine) {
 	containerGroup := router.Group("/api/container")
 	{
-		containerGroup.POST("/createContainer/:imageName")
-		containerGroup.POST("/startContainer/:id", controllers.StartContainer)     // Start a new container
-		containerGroup.POST("/stopContainer/:id", controllers.StopContainer)       // Stop a container
-		//containerGroup.GET("/inspectContainer/:id", controllers.InspectContainer)  // Inspect a container
-		containerGroup.DELETE("/deleteContainer/:id", controllers.DeleteContainer) // Delete a container
-		containerGroup.GET("/getContainerDetails/:id", controllers.GetContainerDetails)
+		containerGroup.POST("/createContainer/:imageName", controllers.CreateContainerFromImage)
+		containerGroup.POST("/startContainer/:name", controllers.StartContainer) // Start a new container
+		containerGroup.POST("/stopContainer/:name", controllers.StopContainer)   // Stop a container
+		//containerGroup.GET("/inspectContainer/:name", controllers.InspectContainer)  // Inspect a container
+		containerGroup.DELETE("/deleteContainer/:name", controllers.DeleteContainer) // Delete a container
+		containerGroup.GET("/getContainerDetails/:name", controllers.GetContainerDetails)
 	}
 }
