@@ -169,8 +169,8 @@ func SaveTrivyScan(imageName string, severityCount map[string]int) error {
 
 func GenerateUserFriendlyPDF(scanResult map[string]interface{}, summary TrivyScanResult, filePath string) error {
 	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.AddUTF8Font("Symbola", "", "fonts/Symbola.ttf") // Register emoji-compatible font
-	pdf.SetFont("Symbola", "", 12)                      // Use it
+	// pdf.AddUTF8Font("Symbola", "", "fonts/Symbola.ttf") // Register emoji-compatible font
+	// pdf.SetFont("Symbola", "", 12)                      // Use it
 
 	pdf.SetMargins(10, 10, 10)
 	pdf.AddPage()
