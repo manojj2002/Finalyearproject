@@ -1,14 +1,17 @@
 package controllers
 
 import (
+	"CVC_ragh/config"
+	"CVC_ragh/models"
+	"context"
 	"fmt"
 	"net/http"
-	"regexp"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // Prometheus Metrics
@@ -19,24 +22,22 @@ var (
 			Name: "container_security_rule_alerts_active",
 			Help: "Number of currently active security alerts by rule",
 		},
-		[]string{"rule_name", "priority", "container_id"},
+		[]string{"rule_name"},
 	)
-
-	// New Metrics
-	ruleAlertsByImage = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "container_security_alerts_by_image_total",
-			Help: "Number of security alerts grouped by container image",
-		},
-		[]string{"image", "image_tag", "registry"},
-	)
-
 	ruleAlertsByCategory = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "container_security_alerts_by_category_total",
 			Help: "Number of security alerts grouped by category",
 		},
-		[]string{"category", "priority"},
+		[]string{"priority"},
+	)
+
+	ruleAlertsByImage = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "container_security_alerts_by_image_total",
+			Help: "Number of security alerts grouped by container image",
+		},
+		[]string{"image", "container_name"},
 	)
 
 	containerViolationsCount = prometheus.NewGaugeVec(
@@ -44,39 +45,13 @@ var (
 			Name: "container_security_violations_count",
 			Help: "Number of security violations per container",
 		},
-		[]string{"container_id", "container_name", "namespace", "pod_name"},
-	)
-
-	hostAlertFrequency = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "container_security_host_alerts_total",
-			Help: "Number of security alerts by host",
-		},
-		[]string{"host_id", "host_name", "cluster"},
-	)
-
-	ruleEffectiveness = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "container_security_rule_effectiveness",
-			Help: "Ratio of true positives to total alerts for a rule (0-1)",
-		},
-		[]string{"rule_name"},
-	)
-	metricsMutex               sync.Mutex
-	vulnerabilityExposureScore = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "container_vulnerability_exposure_score",
-			Help: "Exposure score for container based on vulnerabilities (0-10)",
-		},
-		[]string{"container_id", "container_name", "image"},
+		[]string{"container_name", "rule_name"},
 	)
 )
 
 func init() {
 	prometheus.MustRegister(
-		activeRuleAlerts, ruleAlertsByImage, ruleAlertsByCategory, containerViolationsCount,
-		hostAlertFrequency, ruleEffectiveness,
-		vulnerabilityExposureScore)
+		activeRuleAlerts, ruleAlertsByImage, ruleAlertsByCategory, containerViolationsCount)
 
 }
 
@@ -96,16 +71,6 @@ type FalcoAlert struct {
 	} `json:"output_fields"`
 }
 
-// extractImageFromOutput extracts the container image name from the output string
-func extractImageFromOutput(output string) string {
-	re := regexp.MustCompile(`image=([\w\d:/.-]+)`)
-	match := re.FindStringSubmatch(output)
-	if len(match) > 1 {
-		return match[1]
-	}
-	return "unknown"
-}
-
 // FalcoWebhookHandler processes incoming alerts and updates Prometheus metrics
 func FalcoWebhookHandler(c *gin.Context) {
 	var falcoEvent FalcoAlert
@@ -122,34 +87,18 @@ func FalcoWebhookHandler(c *gin.Context) {
 	fmt.Printf("  🚨 Priority: %s\n", falcoEvent.Priority)
 	fmt.Printf("  📝 Output: %s\n", falcoEvent.Output)
 
-	containerID := falcoEvent.OutputFields.ContainerID
-	//containerName := falcoEvent.OutputFields.ContainerName
-	image := extractImageFromOutput(falcoEvent.Output) // Extract image from output
-	metricsMutex.Lock()
-	defer metricsMutex.Unlock()
-
-	activeRuleAlerts.WithLabelValues(falcoEvent.Rule, falcoEvent.Priority, containerID).Inc()
-	fmt.Println("🔥 Incremented activeRuleAlerts for:", falcoEvent.Rule, falcoEvent.Priority, containerID)
-
-	ruleAlertsByImage.WithLabelValues(image, "latest", "docker.io").Inc()
-	ruleAlertsByCategory.WithLabelValues(falcoEvent.OutputFields.ProcessName, falcoEvent.Priority).Inc()
-	activeCount := 0
-	metricFamilies, err := prometheus.DefaultGatherer.Gather()
-	if err == nil {
-		for _, mf := range metricFamilies {
-			if mf.GetName() == "container_security_rule_alerts_active" {
-				for _, m := range mf.GetMetric() {
-					activeCount += int(m.GetGauge().GetValue())
-				}
-			}
-		}
+	containerName := falcoEvent.OutputFields.ContainerName
+	imageName, err := GetImageByContainerName(falcoEvent.OutputFields.ContainerName)
+	if err != nil {
+		fmt.Println("Error:", err)
+	} else {
+		fmt.Println("Here is the Image Name:", imageName)
 	}
 
-	// ✅ Trigger alert if active alerts exceed 10
-	if activeCount > 10 {
-		fmt.Println("🚨 Alert: More than 10 active security rule alerts detected! 🚨")
-		// You can also send this alert to an external system, email, or webhook
-	}
+	activeRuleAlerts.WithLabelValues(falcoEvent.Rule).Inc()
+	ruleAlertsByImage.WithLabelValues(imageName, containerName).Inc()
+	ruleAlertsByCategory.WithLabelValues(falcoEvent.Priority).Inc()
+	containerViolationsCount.WithLabelValues(containerName, falcoEvent.Rule).Inc()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Falco alert processed successfully"})
 
@@ -158,4 +107,24 @@ func FalcoWebhookHandler(c *gin.Context) {
 // PrometheusMetricsHandler exposes metrics for Prometheus
 func PrometheusMetricsHandler(c *gin.Context) {
 	promhttp.Handler().ServeHTTP(c.Writer, c.Request)
+}
+
+func GetImageByContainerName(containerName string) (string, error) {
+	collection := config.GetDB().Collection("containers") // Get MongoDB collection
+
+	// Define query filter
+	filter := bson.M{"name": containerName}
+
+	// Define a variable of type models.Container
+	var container models.Container
+
+	// Execute the query
+	err := collection.FindOne(context.Background(), filter).Decode(&container)
+	if err == mongo.ErrNoDocuments {
+		return "", fmt.Errorf("no container found with name: %s", containerName)
+	} else if err != nil {
+		return "", fmt.Errorf("database error: %v", err)
+	}
+
+	return container.BaseImage, nil
 }
