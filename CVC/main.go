@@ -1,8 +1,8 @@
 package main
 
 import (
-	"CVC/config"
-	"CVC/routes"
+	"CVC_ragh/config"
+	"CVC_ragh/routes"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,6 +13,9 @@ func main() {
 	// Register user routes
 	config.InitDB()
 	routes.RegisterUserRoutes(r)
-
-	r.Run(":5000") // Start server on port 5000
+	routes.RegisterContainerRoutes(r)
+	routes.RegisterScanningRoutes(r)
+	routes.RegisterDynamicScanningRoutes(r)
+	routes.RegisterFalcoWebHook(r)
+	r.Run(":4000") // Start server on port 5000
 }
