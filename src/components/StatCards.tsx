@@ -39,7 +39,7 @@ const Card = ({
   value: string;
   pillText: string;
   trend: 'up' | 'down';
-  period: sting;
+  period: string;
 }) => {
   return <div className='p-4 col-span-4 rounded border border-stone-300'>
     <div className="flex mb-8 items-start justify-between ">
