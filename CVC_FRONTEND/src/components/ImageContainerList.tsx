@@ -59,41 +59,7 @@ export const SimpleImageContainerList = () => {
     }
   };
   
-  // const fetchData = async () => {
-  //   try {
-  //     const token = localStorage.getItem("token");
-
-  //     const [imageRes, containerRes] = await Promise.all([
-  //       axios.get("/api/static-scan/getImageDetails", {
-  //         headers: { Authorization: `Bearer ${token}` },
-  //       }),
-  //       axios.get("/api/container/getContainerDetails", {
-  //         headers: { Authorization: `Bearer ${token}` },
-  //       }),
-  //     ]);
-
-  //     const images = imageRes.data || [];
-  //     const containers = Array.isArray(containerRes.data?.containers)
-  //       ? containerRes.data.containers
-  //       : [];
-
-  //     const grouped = images.map((img: any) => {
-  //       const matchingContainers = containers.filter(
-  //         (c: any) => c.Image === img.label
-  //       );
-
-  //       return {
-  //         image: img,
-  //         containers: matchingContainers,
-  //       };
-  //     });
-
-  //     setData(grouped);
-  //   } catch (err) {
-  //     console.error("❌ Failed to fetch image/container data:", err);
-  //   }
-  // };
-
+ 
   const fetchData = async () => {
     try {
       const token = getAuthToken();

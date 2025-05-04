@@ -14,7 +14,7 @@ var db *mongo.Database
 // InitDB initializes the MongoDB connection
 func InitDB() {
 	// Define MongoDB URI
-	clientOptions := options.Client().ApplyURI("mongodb+srv://jrraghav:bmsce2025@cluster0.jgir2hv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+	clientOptions := options.Client().ApplyURI("")
 
 	// Set a timeout for connection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

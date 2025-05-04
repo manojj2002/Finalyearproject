@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	clientID     = "Ov23liIqM2f5hgTtVp32"
-	clientSecret = "e1ae9c413c43309dfe372ee640906d1e6064f366"
+	clientID     = ""
+	clientSecret = ""
 	oauthURL     = "https://github.com/login/oauth"
 	apiURL       = "https://api.github.com/user"
 	redirectURI  = "http://localhost:4000/api/auth/github/callback"

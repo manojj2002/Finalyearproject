@@ -1,12 +1,6 @@
 import { heroData } from '@/constants';
-import React from 'react';
-import { Button } from './ui/button';
-import { heroBanner } from '@/assets';
-import { Dialog, DialogTrigger, DialogContent } from './ui/dialog';
-import { AspectRatio } from './ui/aspect-ratio';
 
-import ReactPlayer from 'react-player/youtube';
-import { CirclePlay } from 'lucide-react';
+import { heroBanner } from '@/assets';
 import { useRef } from 'react';
 import {
   motion,
@@ -92,28 +86,8 @@ const Hero = () => {
             variants={heroChildVariant}
             className='flex justify-center gap-2 mt-6 md:mt-10'
           >
-            <Button>Start Free Trial</Button>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant='ghost'>
-                  <CirclePlay />
-                  Watch Demo
-                </Button>
-              </DialogTrigger>
-              <DialogContent className='p-0 overflow-hidden max-w-[640px] xl:max-w-[1000px]'>
-                <AspectRatio ratio={16 / 9}>
-                  <ReactPlayer
-                    url='https://www.youtube.com/watch?v=DLPGApBMDWI'
-                    style={{
-                      minWidth: '100%',
-                      maxWidth: '100%',
-                      minHeight: '100%',
-                      maxHeight: '100%',
-                    }}
-                  />
-                </AspectRatio>
-              </DialogContent>
-            </Dialog>
+            
+            
           </motion.div>
         </div>
 

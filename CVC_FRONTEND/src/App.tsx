@@ -1,43 +1,7 @@
-// import { ToastContainer } from "react-toastify";
-// import "react-toastify/dist/ReactToastify.css";
-// import { BrowserRouter, Routes, Route } from 'react-router-dom';
-// import { Home } from './pages/Home';
-// import { DashboardHome } from './pages/DashboardHome';
-// import { DashboardLayout } from './pages/DashboardLayout';
-// import { ScanResultsPage } from "./pages/ScanResultsPage";
-// const App = () => {
-//   return (
-//     <BrowserRouter>
-//       <Routes>
-//         <Route
-//           path='/'
-//           element={<Home />}
-//         />
-//         <Route
-//           path='/dashboard'
-//           element={<DashboardLayout />}
-//         >
-//           <Route
-//             index
-//             element={<DashboardHome />}
-//           />
-//            <Route path="result" element={<ScanResultsPage />} />
-//         </Route>
-//         {/* <Route path='/dashboard/result' element={<ScanResultsPage />} /> */}
-        
-//       </Routes>
-//       <ToastContainer position="top-right" autoClose={3000} />
-//     </BrowserRouter>
-//   );
-// };
-// export default App;
-
-
-
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useDispatch } from "react-redux";
+
 
 import { Home } from './pages/Home';
 import { DashboardHome } from './pages/DashboardHome';
