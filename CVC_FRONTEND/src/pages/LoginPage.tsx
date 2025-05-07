@@ -2,6 +2,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import Logo from '@/components/Logo';
+import { Link } from "react-router-dom";
 
 export function LoginForm({
   className,
@@ -11,6 +13,12 @@ export function LoginForm({
     <div className="flex items-center justify-center min-h-screen">
     <form className={cn("flex flex-col gap-6","w-110 h-84", className)} {...props}>
       <div className="flex flex-col items-center gap-2 text-center">
+        {/* Logo on the left */}
+        <div className="absolute top-11 left-23">
+        <Link to="/">
+          <Logo variant="icon" />
+        </Link>
+        </div>
         <h1 className="text-2xl font-bold">Login to your account</h1>
         <p className="text-balance text-sm text-muted-foreground">
           Enter your email below to login to your account
@@ -53,7 +61,7 @@ export function LoginForm({
       </div>
       <div className="text-center text-sm">
         Don&apos;t have an account?{" "}
-        <a href="#" className="underline underline-offset-4">
+        <a href="/register" className="underline underline-offset-4">
           Sign up
         </a>
       </div>

@@ -7,7 +7,7 @@ import { Home } from './pages/Home';
 import { DashboardHome } from './pages/DashboardHome';
 import { DashboardLayout } from './pages/DashboardLayout';
 import { ScanResultsPage } from "./pages/ScanResultsPage";
-import RegisterOrGithub from "./pages/UserRegister";
+import { SignupForm } from "./pages/UserRegister";
 import GithubRedirectHandler from "./pages/GithubRedirectHandler";
 import { LoginForm } from "./pages/LoginPage";
 const App = () => {
@@ -16,7 +16,7 @@ const App = () => {
       <Routes>
         <Route path='/' element={<Home />} />
 
-        <Route path='/register' element={<RegisterOrGithub />} />
+        <Route path='/register' element={<SignupForm/>} />
         <Route path= '/login' element={<LoginForm/>}/>
         <Route path="/githubLogin" element={<GithubRedirectHandler />} />
 
