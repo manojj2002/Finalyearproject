@@ -9,7 +9,7 @@ import { DashboardLayout } from './pages/DashboardLayout';
 import { ScanResultsPage } from "./pages/ScanResultsPage";
 import RegisterOrGithub from "./pages/UserRegister";
 import GithubRedirectHandler from "./pages/GithubRedirectHandler";
-import LoginPage from "./pages/LoginPage";
+import { LoginForm } from "./pages/LoginPage";
 const App = () => {
   return (
     <BrowserRouter>
@@ -17,7 +17,7 @@ const App = () => {
         <Route path='/' element={<Home />} />
 
         <Route path='/register' element={<RegisterOrGithub />} />
-        <Route path= '/login' element={<LoginPage/>}/>
+        <Route path= '/login' element={<LoginForm/>}/>
         <Route path="/githubLogin" element={<GithubRedirectHandler />} />
 
         <Route path='/dashboard' element={<DashboardLayout />}>
